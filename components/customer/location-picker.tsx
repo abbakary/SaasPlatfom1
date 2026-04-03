@@ -16,6 +16,7 @@ interface LocationPickerProps {
     lng: number;
   };
   onClose?: () => void;
+  showContinueButton?: boolean;
 }
 
 // Common Tanzania locations for suggestions
@@ -41,6 +42,7 @@ export function LocationPicker({
   onLocationSelect,
   initialLocation,
   onClose,
+  showContinueButton,
 }: LocationPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [isClient, setIsClient] = useState(false);
@@ -348,7 +350,7 @@ export function LocationPicker({
                 className="w-full bg-emerald-500 hover:bg-emerald-600"
                 onClick={handleConfirm}
               >
-                Confirm Location
+                {showContinueButton ? "Save Location and Continue" : "Confirm Location"}
               </Button>
             </>
           ) : (

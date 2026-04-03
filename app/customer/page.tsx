@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { products, pharmacies, formatTZS } from "@/lib/mock-data";
 import type { Product } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth-context";
@@ -76,7 +76,7 @@ const mockOrders = [
 ];
 
 export default function CustomerPWA() {
-  const { user, isLoading: authLoading, login, register, logout, updateLocation } = useAuth();
+  const { user, isLoading: authLoading, login, loginWithPin, register, logout, updateLocation } = useAuth();
   
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -92,19 +92,31 @@ export default function CustomerPWA() {
   const [searchFilter, setSearchFilter] = useState<"all" | "price-low" | "price-high" | "popular">("all");
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
+  // Show auth page first if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user && activeView !== "account") {
+      setActiveView("account");
+      setAuthView("login");
+    }
+  }, [authLoading, user, activeView]);
+
   // Auth form states
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [loginPin, setLoginPin] = useState("");
+  const [usePin, setUsePin] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoginLoading, setIsLoginLoading] = useState(false);
 
   // Registration form states
   const [regFullName, setRegFullName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
+  const [regUsername, setRegUsername] = useState("");
   const [regPhone, setRegPhone] = useState("+255 ");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [regPin, setRegPin] = useState("");
+  const [regSetPin, setRegSetPin] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [regLocation, setRegLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
   const [regError, setRegError] = useState("");
@@ -192,8 +204,13 @@ export default function CustomerPWA() {
     setLoginError("");
     setIsLoginLoading(true);
 
-    const result = await login(loginEmail, loginPassword);
-    
+    let result;
+    if (usePin) {
+      result = await loginWithPin(loginUsername, loginPin);
+    } else {
+      result = await login(loginUsername, loginPassword);
+    }
+
     if (!result.success) {
       setLoginError(result.error || "Login failed");
     } else {
@@ -211,8 +228,8 @@ export default function CustomerPWA() {
       setRegError("Please enter your full name");
       return;
     }
-    if (!regEmail.trim() || !regEmail.includes("@")) {
-      setRegError("Please enter a valid email address");
+    if (!regUsername.trim()) {
+      setRegError("Please enter a username");
       return;
     }
     if (!regPhone.trim() || regPhone.length < 10) {
@@ -227,6 +244,10 @@ export default function CustomerPWA() {
       setRegError("Passwords do not match");
       return;
     }
+    if (regSetPin && (!regPin || regPin.length < 4)) {
+      setRegError("PIN must be at least 4 digits");
+      return;
+    }
     if (!regLocation) {
       setRegError("Please select your delivery location");
       return;
@@ -236,9 +257,10 @@ export default function CustomerPWA() {
 
     const result = await register({
       fullName: regFullName,
-      email: regEmail,
+      username: regUsername,
       phone: regPhone,
       password: regPassword,
+      pin: regSetPin ? regPin : undefined,
       location: regLocation,
     });
 
@@ -247,10 +269,12 @@ export default function CustomerPWA() {
     } else {
       // Clear form
       setRegFullName("");
-      setRegEmail("");
+      setRegUsername("");
       setRegPhone("+255 ");
       setRegPassword("");
       setRegConfirmPassword("");
+      setRegPin("");
+      setRegSetPin(false);
       setRegLocation(null);
       setAuthView("profile");
     }
@@ -288,41 +312,59 @@ export default function CustomerPWA() {
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Email</label>
+            <label className="text-sm font-medium text-foreground">Username</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                type="email"
-                placeholder="john@example.com"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
+                type="text"
+                placeholder="johnmwalimu"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
                 className="pl-10"
                 required
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type={showLoginPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="pl-10 pr-10"
-                required
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowLoginPassword(!showLoginPassword)}
-              >
-                {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+          {!usePin ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type={showLoginPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                >
+                  {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">PIN Code</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Enter your 4-digit PIN"
+                  value={loginPin}
+                  onChange={(e) => setLoginPin(e.target.value.slice(0, 4))}
+                  maxLength={4}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+          )}
 
           <Button
             type="submit"
@@ -337,6 +379,16 @@ export default function CustomerPWA() {
             Sign In
           </Button>
         </form>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            className="w-full text-sm text-emerald-600 font-medium hover:underline text-center"
+            onClick={() => setUsePin(!usePin)}
+          >
+            {usePin ? "Use Password instead" : "Use PIN code instead"}
+          </button>
+        </div>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-muted-foreground">
@@ -353,8 +405,9 @@ export default function CustomerPWA() {
         {/* Demo Credentials */}
         <div className="mt-8 rounded-xl bg-muted/50 p-4">
           <p className="text-xs text-muted-foreground font-medium mb-2">Demo Credentials:</p>
-          <p className="text-xs text-muted-foreground">Email: john@example.com</p>
+          <p className="text-xs text-muted-foreground">Username: johnmwalimu</p>
           <p className="text-xs text-muted-foreground">Password: password123</p>
+          <p className="text-xs text-muted-foreground">Or PIN: 1234</p>
         </div>
       </div>
     );
@@ -401,14 +454,14 @@ export default function CustomerPWA() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Email Address *</label>
+            <label className="text-sm font-medium text-foreground">Username *</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                type="email"
-                placeholder="john@example.com"
-                value={regEmail}
-                onChange={(e) => setRegEmail(e.target.value)}
+                type="text"
+                placeholder="johnmwalimu"
+                value={regUsername}
+                onChange={(e) => setRegUsername(e.target.value)}
                 className="pl-10"
                 required
               />
@@ -508,6 +561,38 @@ export default function CustomerPWA() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="setup-pin"
+                checked={regSetPin}
+                onChange={(e) => setRegSetPin(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="setup-pin" className="text-sm font-medium text-foreground cursor-pointer">
+                Also set up a PIN code (optional)
+              </label>
+            </div>
+          </div>
+
+          {regSetPin && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">PIN Code (4 digits)</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Enter 4-digit PIN"
+                  value={regPin}
+                  onChange={(e) => setRegPin(e.target.value.slice(0, 4))}
+                  maxLength={4}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+          )}
+
           <Button
             type="submit"
             className="w-full bg-emerald-500 hover:bg-emerald-600 py-6"
@@ -535,6 +620,7 @@ export default function CustomerPWA() {
             }}
             onClose={() => setShowRegLocationPicker(false)}
             initialLocation={regLocation ? { lat: regLocation.lat, lng: regLocation.lng } : undefined}
+            showContinueButton={true}
           />
         )}
       </div>
@@ -1509,48 +1595,50 @@ export default function CustomerPWA() {
         </button>
       )}
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white">
-        <div className="mx-auto max-w-md flex items-center justify-around py-2">
-          <NavItem
-            icon={<Home className="h-5 w-5" />}
-            label="Home"
-            active={activeView === "home"}
-            onClick={() => setActiveView("home")}
-          />
-          <NavItem
-            icon={<Search className="h-5 w-5" />}
-            label="Search"
-            active={activeView === "search"}
-            onClick={() => setActiveView("search")}
-          />
-          <NavItem
-            icon={<Camera className="h-5 w-5" />}
-            label="Scan"
-            active={activeView === "scan"}
-            onClick={() => setActiveView("scan")}
-            highlight
-          />
-          <NavItem
-            icon={<Heart className="h-5 w-5" />}
-            label="Wishlist"
-            active={activeView === "wishlist"}
-            onClick={() => setActiveView("wishlist")}
-            badge={wishlist.length > 0 ? wishlist.length : undefined}
-          />
-          <NavItem
-            icon={<User className="h-5 w-5" />}
-            label="Account"
-            active={activeView === "account"}
-            onClick={() => {
-              setActiveView("account");
-              if (user) {
-                setAuthView("profile");
-              }
-            }}
-          />
-        </div>
-      </nav>
+      {/* Bottom Navigation - Only visible when logged in */}
+      {!authLoading && user && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white">
+          <div className="mx-auto max-w-md flex items-center justify-around py-2">
+            <NavItem
+              icon={<Home className="h-5 w-5" />}
+              label="Home"
+              active={activeView === "home"}
+              onClick={() => setActiveView("home")}
+            />
+            <NavItem
+              icon={<Search className="h-5 w-5" />}
+              label="Search"
+              active={activeView === "search"}
+              onClick={() => setActiveView("search")}
+            />
+            <NavItem
+              icon={<Camera className="h-5 w-5" />}
+              label="Scan"
+              active={activeView === "scan"}
+              onClick={() => setActiveView("scan")}
+              highlight
+            />
+            <NavItem
+              icon={<Heart className="h-5 w-5" />}
+              label="Wishlist"
+              active={activeView === "wishlist"}
+              onClick={() => setActiveView("wishlist")}
+              badge={wishlist.length > 0 ? wishlist.length : undefined}
+            />
+            <NavItem
+              icon={<User className="h-5 w-5" />}
+              label="Account"
+              active={activeView === "account"}
+              onClick={() => {
+                setActiveView("account");
+                if (user) {
+                  setAuthView("profile");
+                }
+              }}
+            />
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
