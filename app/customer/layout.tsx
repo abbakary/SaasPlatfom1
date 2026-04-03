@@ -1,0 +1,17 @@
+"use client";
+
+import { AuthProvider } from "@/lib/auth-context";
+
+export default function CustomerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <AuthProvider>
+      <div className="min-h-screen bg-background">
+        {children}
+      </div>
+    </AuthProvider>
+  );
+}
