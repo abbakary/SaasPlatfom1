@@ -1595,48 +1595,50 @@ export default function CustomerPWA() {
         </button>
       )}
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white">
-        <div className="mx-auto max-w-md flex items-center justify-around py-2">
-          <NavItem
-            icon={<Home className="h-5 w-5" />}
-            label="Home"
-            active={activeView === "home"}
-            onClick={() => setActiveView("home")}
-          />
-          <NavItem
-            icon={<Search className="h-5 w-5" />}
-            label="Search"
-            active={activeView === "search"}
-            onClick={() => setActiveView("search")}
-          />
-          <NavItem
-            icon={<Camera className="h-5 w-5" />}
-            label="Scan"
-            active={activeView === "scan"}
-            onClick={() => setActiveView("scan")}
-            highlight
-          />
-          <NavItem
-            icon={<Heart className="h-5 w-5" />}
-            label="Wishlist"
-            active={activeView === "wishlist"}
-            onClick={() => setActiveView("wishlist")}
-            badge={wishlist.length > 0 ? wishlist.length : undefined}
-          />
-          <NavItem
-            icon={<User className="h-5 w-5" />}
-            label="Account"
-            active={activeView === "account"}
-            onClick={() => {
-              setActiveView("account");
-              if (user) {
-                setAuthView("profile");
-              }
-            }}
-          />
-        </div>
-      </nav>
+      {/* Bottom Navigation - Only visible when logged in */}
+      {!authLoading && user && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white">
+          <div className="mx-auto max-w-md flex items-center justify-around py-2">
+            <NavItem
+              icon={<Home className="h-5 w-5" />}
+              label="Home"
+              active={activeView === "home"}
+              onClick={() => setActiveView("home")}
+            />
+            <NavItem
+              icon={<Search className="h-5 w-5" />}
+              label="Search"
+              active={activeView === "search"}
+              onClick={() => setActiveView("search")}
+            />
+            <NavItem
+              icon={<Camera className="h-5 w-5" />}
+              label="Scan"
+              active={activeView === "scan"}
+              onClick={() => setActiveView("scan")}
+              highlight
+            />
+            <NavItem
+              icon={<Heart className="h-5 w-5" />}
+              label="Wishlist"
+              active={activeView === "wishlist"}
+              onClick={() => setActiveView("wishlist")}
+              badge={wishlist.length > 0 ? wishlist.length : undefined}
+            />
+            <NavItem
+              icon={<User className="h-5 w-5" />}
+              label="Account"
+              active={activeView === "account"}
+              onClick={() => {
+                setActiveView("account");
+                if (user) {
+                  setAuthView("profile");
+                }
+              }}
+            />
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
