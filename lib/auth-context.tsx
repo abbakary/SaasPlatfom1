@@ -11,7 +11,7 @@ export interface UserLocation {
 export interface CustomerUser {
   id: string;
   fullName: string;
-  email: string;
+  username: string;
   phone: string;
   location: UserLocation | null;
   createdAt: string;
@@ -20,7 +20,8 @@ export interface CustomerUser {
 interface AuthContextType {
   user: CustomerUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithPin: (username: string, pin: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateProfile: (data: Partial<CustomerUser>) => void;
@@ -29,22 +30,24 @@ interface AuthContextType {
 
 interface RegisterData {
   fullName: string;
-  email: string;
+  username: string;
   phone: string;
   password: string;
+  pin?: string;
   location: UserLocation | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock user database (in real app, this would be server-side)
-const mockUsers: Array<CustomerUser & { password: string }> = [
+const mockUsers: Array<CustomerUser & { password: string; pin?: string }> = [
   {
     id: "user-001",
     fullName: "John Mwalimu",
-    email: "john@example.com",
+    username: "johnmwalimu",
     phone: "+255 712 345 678",
     password: "password123",
+    pin: "1234",
     location: {
       lat: -6.7924,
       lng: 39.2083,
@@ -75,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Get all registered users
-  const getUsers = (): Array<CustomerUser & { password: string }> => {
+  const getUsers = (): Array<CustomerUser & { password: string; pin?: string }> => {
     const stored = localStorage.getItem(USERS_KEY);
     if (stored) {
       try {
@@ -88,30 +91,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Save new user to localStorage
-  const saveUser = (newUser: CustomerUser & { password: string }) => {
+  const saveUser = (newUser: CustomerUser & { password: string; pin?: string }) => {
     const existing = localStorage.getItem(USERS_KEY);
     const users = existing ? JSON.parse(existing) : [];
     users.push(newUser);
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
   };
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
     // Simulate API call delay
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const users = getUsers();
     const foundUser = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+      (u) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
     );
 
     if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutPassword));
+      const { password: _, pin: __, ...userWithoutCredentials } = foundUser;
+      setUser(userWithoutCredentials);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutCredentials));
       return { success: true };
     }
 
-    return { success: false, error: "Invalid email or password" };
+    return { success: false, error: "Invalid username or password" };
+  };
+
+  const loginWithPin = async (username: string, pin: string): Promise<{ success: boolean; error?: string }> => {
+    // Simulate API call delay
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const users = getUsers();
+    const foundUser = users.find(
+      (u) => u.username.toLowerCase() === username.toLowerCase() && u.pin === pin
+    );
+
+    if (foundUser) {
+      const { password: _, pin: __, ...userWithoutCredentials } = foundUser;
+      setUser(userWithoutCredentials);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutCredentials));
+      return { success: true };
+    }
+
+    return { success: false, error: "Invalid username or PIN" };
   };
 
   const register = async (data: RegisterData): Promise<{ success: boolean; error?: string }> => {
@@ -119,10 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const users = getUsers();
-    
-    // Check if email already exists
-    if (users.some((u) => u.email.toLowerCase() === data.email.toLowerCase())) {
-      return { success: false, error: "Email already registered" };
+
+    // Check if username already exists
+    if (users.some((u) => u.username.toLowerCase() === data.username.toLowerCase())) {
+      return { success: false, error: "Username already taken" };
     }
 
     // Check if phone already exists
@@ -134,9 +156,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const newUser = {
       id: `user-${Date.now()}`,
       fullName: data.fullName,
-      email: data.email,
+      username: data.username,
       phone: data.phone,
       password: data.password,
+      pin: data.pin,
       location: data.location,
       createdAt: new Date().toISOString().split("T")[0],
     };
@@ -144,9 +167,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveUser(newUser);
 
     // Auto-login after registration
-    const { password: _, ...userWithoutPassword } = newUser;
-    setUser(userWithoutPassword);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutPassword));
+    const { password: _, pin: __, ...userWithoutCredentials } = newUser;
+    setUser(userWithoutCredentials);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutCredentials));
 
     return { success: true };
   };
@@ -178,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         login,
+        loginWithPin,
         register,
         logout,
         updateProfile,
